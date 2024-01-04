@@ -1,4 +1,5 @@
 # **Téma: 2. Analýza Vytíženosti Zastávek a Tras**
+**Jméno**: David Kiml \
 **Zadání**: Identifikujte a analyzujte nejvytíženější trasy a zastávky v Praze.
 Použijte data o frekvenci polohových záznamů pro určení místa s největším provozem.
 Porovnejte vytíženost v různých časech dne a zobrazte výsledky v přehledných grafech.
