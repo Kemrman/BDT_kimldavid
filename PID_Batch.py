@@ -7,16 +7,18 @@
 # MAGIC <div  style="text-align: center; line-height: 0; padding-top: 20px;">
 # MAGIC   <img src="https://raw.githubusercontent.com/animrichter/BDT_2023/master/data/assets/streaming.png" style="width: 1200">
 # MAGIC </div>
+# MAGIC
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT * FROM timestamps
+# MAGIC SELECT *  FROM timestamps
 
 # COMMAND ----------
 
 from pyspark.sql.functions import col, max, current_timestamp, date_format, expr
 
+# Get previous timestamp and set current timestamp. This will be interval for which we append new records to tables and aggregate by it
 df = spark.read.format('delta').table('timestamps')
 last_timestamp = df.select(max(col("timestamp"))).collect()[0][0]
 
@@ -52,7 +54,7 @@ schema = StructType([
     ]), False)
 ])
 
-# Load Delta table
+# Load Delta table and get record in time interval
 df = spark.read.format('delta').table('bronze')
 df = df.filter((col("timestamp") <= curr_timestamp) & (col("timestamp") > last_timestamp)) \
        .withColumn("value", col("value").cast(StringType()))
@@ -84,7 +86,7 @@ import requests, time
 
 #Function to get route name from Golemio API
 def get_route_name(route_id):
-    #in case of large data, Too many requests is returned
+    #in case of large data, Too many requests is returned. This is why we take top 20 
     url = f'https://api.golemio.cz/v2/gtfs/routes/{route_id}'
     headers = {
         'accept': 'application/json',
@@ -99,14 +101,14 @@ def get_route_name(route_id):
 df = spark.read.format('delta').table('silver')
 df = df.filter((col("from_timestamp") == last_timestamp) & (col("to_timestamp") == curr_timestamp))
 
-#Get count of vehicles which use the route (count vehicle/trip only once per trip)
+#Get top 20 count of vehicles which use the route (count vehicle/trip only once per trip) in interval
 get_route_name_udf = udf(get_route_name)
 df_routes_agg = (
     df.select(col("trip_id"), col("route_id")) 
     .groupBy("route_id") 
     .agg(countDistinct("trip_id").alias("route_count")) 
     .orderBy("route_count", ascending=False)
-    .limit(100)
+    .limit(20)
     .withColumn("route_name", get_route_name_udf(col("route_id")))
     .withColumn("from_timestamp", lit(last_timestamp))
     .withColumn("to_timestamp", lit(curr_timestamp))
@@ -120,18 +122,18 @@ df_stops = (
      .select(col("stop_name"), explode("stop_id").alias("stop_id"))
 )
 
-# Get count of vehicles which passed the stop (count vehicle/trip only once per trip)
+# Get top 20 count of vehicles which passed the stop (count vehicle/trip only once per trip) in interval
 df_stops_agg = (
     df.join(df_stops, df_stops["stop_id"] == df["last_stop_id"], "inner")
     .select(col("stop_name"), col("trip_id")) 
     .groupBy("stop_name") 
     .agg(countDistinct("trip_id").alias("stop_count")) 
     .orderBy("stop_count", ascending=False)
-    .limit(100)
+    .limit(20)
     .withColumn("from_timestamp", lit(last_timestamp))
     .withColumn("to_timestamp", lit(curr_timestamp))
 )
 
-#df_routes_agg.display()
+#df_stops_agg.display()
 df_routes_agg.write.mode('append').saveAsTable("gold_routes")
 df_stops_agg.write.mode('append').saveAsTable("gold_stops")

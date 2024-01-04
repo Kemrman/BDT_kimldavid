@@ -27,10 +27,10 @@ raw = (
         .load()
 )
 
-file_path = '/mnt/test/test4.json'
-checkpoint = '/mnt/test/check4.txt'
+file_path = '/mnt/test/test.json'
+checkpoint = '/mnt/test/check.txt'
 
-# Save data to table
+# Save data to bronze table
 (raw.writeStream
    .format("delta")
    .outputMode("append")
@@ -41,9 +41,4 @@ checkpoint = '/mnt/test/check4.txt'
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT * FROM events
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC CREATE TABLE bronze AS SELECT string(value), timestamp from events
+# MAGIC SELECT * FROM bronze ORDER BY TIMESTAMP DESC
